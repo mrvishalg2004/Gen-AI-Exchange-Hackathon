@@ -153,12 +153,3 @@ For support, feature requests, or feedback:
 
 ---
 
-Built with ❤️ using React, Vite, and Google Gemini AI
-
-## 🙏 Acknowledgments
-
-- Built with [Rocket.new](https://rocket.new)
-- Powered by React and Vite
-- Styled with Tailwind CSS
-
-Built with ❤️ on Rocket.new
