@@ -39,12 +39,49 @@ class GeminiService {
         },
       });
       console.log('✅ Gemini model initialized successfully');
+      
+      // Run diagnostic in development mode
+      if (import.meta.env.DEV) {
+        setTimeout(() => this.debugApiKey(), 1000);
+      }
     } catch (error) {
       console.error('❌ Error initializing Gemini service:', error);
       this.apiKeyMissing = true;
     }
   }
   
+  /**
+   * Debug diagnostic - Test the API key manually
+   */
+  async debugApiKey() {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    
+    console.log('🔧 GEMINI API DEBUG DIAGNOSTIC');
+    console.log('================================');
+    console.log('API Key exists:', !!apiKey);
+    console.log('API Key length:', apiKey?.length);
+    console.log('API Key format:', apiKey?.startsWith('AIza') ? 'Valid format' : 'Invalid format');
+    console.log('API Key preview:', apiKey?.substring(0, 15) + '...');
+    console.log('Service initialized:', !this.apiKeyMissing);
+    
+    if (this.apiKeyMissing) {
+      console.log('❌ Service initialization failed');
+      return;
+    }
+    
+    try {
+      console.log('📡 Testing direct API call...');
+      const result = await this.model.generateContent('Simple test message');
+      const response = await result.response;
+      const text = response.text();
+      console.log('✅ Direct API call successful!');
+      console.log('📝 Response preview:', text.substring(0, 100));
+    } catch (error) {
+      console.log('❌ Direct API call failed:', error.message);
+      console.log('🔍 Error details:', error);
+    }
+  }
+
   /**
    * Validates the current API key
    * @returns {Promise<Object>} Result of validation
@@ -59,9 +96,8 @@ class GeminiService {
     }
     
     try {
-      // Log the first 5 chars of the API key for debugging (safely)
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      console.log(`Testing API key starting with: ${apiKey?.substring(0, 5)}...`);
+      console.log(`🔑 Testing Gemini API key: ${apiKey?.substring(0, 10)}...`);
       
       // Check if it's still a demo/placeholder key
       if (apiKey?.includes('Demo') || apiKey?.includes('YOUR_ACTUAL') || apiKey?.includes('ReplaceWith')) {
@@ -72,40 +108,57 @@ class GeminiService {
         };
       }
       
-      // Simple test to verify the API key works
-      const result = await this.model.generateContent('Test message');
-      await result.response;
+      // Use the library method first (more reliable)
+      console.log('🧪 Testing API key with Gemini library...');
+      const result = await this.model.generateContent('Hello, this is a test validation message.');
+      const response = await result.response;
+      const text = response.text();
+      
+      console.log('✅ Gemini API validation successful!');
+      console.log('📝 Test response preview:', text.substring(0, 100) + '...');
       
       return {
         valid: true,
-        model: 'gemini-pro'
+        model: 'gemini-pro',
+        testResponse: text.substring(0, 100),
+        method: 'gemini-library'
       };
     } catch (error) {
-      console.error('API key validation error:', error);
+      console.error('❌ API key validation error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.status,
+        statusText: error.statusText,
+        name: error.name
+      });
       
       // Check for specific error types
       let reason = 'API key validation failed';
       let suggestion = 'Please check if the API key is valid and has sufficient quota';
       
-      if (error.message?.includes('API_KEY_INVALID') || error.message?.includes('invalid API key')) {
-        reason = 'Invalid API key';
+      if (error.message?.includes('API_KEY_INVALID') || error.message?.includes('invalid API key') || error.message?.includes('Invalid API key')) {
+        reason = 'Invalid API key format or permissions';
         suggestion = 'Your API key is invalid. Please generate a new one from Google AI Studio (https://ai.google.dev/)';
-      } else if (error.message?.includes('quota') || error.message?.includes('limit')) {
+      } else if (error.message?.includes('quota') || error.message?.includes('limit') || error.message?.includes('exceeded')) {
         reason = 'API quota exceeded';
         suggestion = 'Your API key has reached its quota limit. Wait or request a new key.';
-      } else if (error.message?.includes('network') || error.message?.includes('connect')) {
+      } else if (error.message?.includes('network') || error.message?.includes('connect') || error.message?.includes('fetch')) {
         reason = 'Network connectivity issue';
-        suggestion = 'Check your internet connection';
-      } else if (error.message?.includes('PERMISSION_DENIED')) {
+        suggestion = 'Check your internet connection and firewall settings';
+      } else if (error.message?.includes('PERMISSION_DENIED') || error.message?.includes('403')) {
         reason = 'API key lacks permissions';
         suggestion = 'Ensure your API key has Gemini API permissions enabled';
+      } else if (error.message?.includes('404') || error.message?.includes('not found')) {
+        reason = 'API endpoint or model not found';
+        suggestion = 'The Gemini API model may not be available. Check your API key permissions.';
       }
       
       return {
         valid: false,
         reason: reason,
         error: error.message,
-        suggestion: suggestion
+        suggestion: suggestion,
+        fullError: error.toString()
       };
     }
   }

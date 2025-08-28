@@ -10,6 +10,7 @@ import ChatHeader from './components/ChatHeader';
 import WelcomeScreen from './components/WelcomeScreen';
 import Icon from '../../components/AppIcon';
 import geminiService from '../../services/geminiService';
+import openaiService from '../../services/openaiService';
 import apiKeyDiagnostic from '../../services/apiKeyDiagnostic';
 
 const AIChatInterface = () => {
@@ -25,15 +26,38 @@ const AIChatInterface = () => {
   useEffect(() => {
     const checkApiStatus = async () => {
       try {
-        const status = await geminiService.validateApiKey();
+        let status;
+        const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
+        const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        
+        console.log('API Keys available:', {
+          openai: !!openaiKey && openaiKey.length > 10,
+          gemini: !!geminiKey && geminiKey.length > 10
+        });
+        
+        // Use Gemini if available, otherwise try OpenAI
+        if (geminiKey && geminiKey.length > 10) {
+          console.log('Using Gemini service for validation');
+          status = await geminiService.validateApiKey();
+        } else if (openaiKey && openaiKey.length > 10) {
+          console.log('Using OpenAI service for validation');
+          status = await openaiService.validateApiKey();
+        } else {
+          status = { valid: false, reason: 'No valid API key configured' };
+        }
+        
         setApiStatus({
           checked: true,
           valid: status.valid,
-          details: status
+          details: status,
+          service: (geminiKey && geminiKey.length > 10) ? 'Gemini' : 'OpenAI'
         });
         
         if (!status.valid) {
           setApiError(`API validation failed: ${status.reason || 'Unknown error'}`);
+        } else {
+          console.log('✅ API validation successful!');
+          setApiError(null);
         }
       } catch (error) {
         console.error('Error validating API:', error);
@@ -42,6 +66,7 @@ const AIChatInterface = () => {
           valid: false,
           details: { error: error.message }
         });
+        setApiError(`API validation error: ${error.message}`);
       }
     };
     
@@ -70,7 +95,7 @@ const AIChatInterface = () => {
         {
           id: 1,
           type: 'ai',
-          content: `Hi Sarah! I'm your AI Career Advisor powered by Gemini AI. I can see from your profile that you're currently working as a Marketing Coordinator with 3 years of experience.\n\nI'm here to help you explore career paths, identify skill gaps, and create personalized learning roadmaps. What would you like to discuss today?`,
+          content: `Hi Sarah! I'm your AI Career Advisor powered by advanced AI technology. I can see from your profile that you're currently working as a Marketing Coordinator with 3 years of experience.\n\nI'm here to help you explore career paths, identify skill gaps, and create personalized learning roadmaps. What would you like to discuss today?`,
           timestamp: new Date(Date.now() - 1000 * 60 * 35),
           quickReplies: [
             "Explore new career paths",
@@ -138,13 +163,26 @@ const AIChatInterface = () => {
       
       console.log('Generating AI response for:', userMessage);
       
-      // Call Gemini AI service
-      const response = await geminiService.generateCareerAdvice(userMessage, userProfile);
+      // Choose service based on available API key (prioritize Gemini)
+      const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      
+      let response;
+      if (geminiKey && geminiKey.length > 10) {
+        console.log('Using Gemini service for generation');
+        response = await geminiService.generateCareerAdvice(userMessage, userProfile);
+      } else if (openaiKey && openaiKey.length > 10) {
+        console.log('Using OpenAI service for generation');
+        response = await openaiService.generateCareerAdvice(userMessage, userProfile);
+      } else {
+        throw new Error('No valid API key configured');
+      }
       
       console.log('AI service response:', { 
         success: response.success, 
         demoMode: response.demoMode,
-        contentLength: response.content?.length 
+        contentLength: response.content?.length,
+        service: (geminiKey && geminiKey.length > 10) ? 'Gemini' : 'OpenAI'
       });
       
       if (!response.success) {
@@ -167,7 +205,7 @@ const AIChatInterface = () => {
       };
       
     } catch (error) {
-      console.error('Error calling Gemini API:', error);
+      console.error('Error calling AI service:', error);
       setApiError(`AI service error: ${error.message || 'Unknown error'}`);
       
       // Enhanced fallback response with debugging info
@@ -180,7 +218,7 @@ const AIChatInterface = () => {
 • Try a simpler question to test the service
 
 **For Administrators:**
-• Verify the Gemini API key in the .env file
+• Verify the API key in the .env file (OpenAI or Gemini)
 • Check API key permissions and quota
 • Review browser console for detailed error logs
 
@@ -345,9 +383,9 @@ Would you like me to provide some general career guidance instead?`,
       lastActivity: new Date(),
       messages: [
         {
-          id: 1,
+          id: Date.now(),
           type: 'ai',
-          content: `Hi ${userProfile?.name}! I'm your AI Career Advisor powered by Gemini AI. I'm here to help with your career questions. What would you like to discuss today?`,
+          content: `Hi ${userProfile?.name}! I'm your AI Career Advisor powered by advanced AI technology. I'm here to help with your career questions. What would you like to discuss today?`,
           timestamp: new Date(),
           quickReplies: [
             "Explore career paths",
@@ -381,7 +419,7 @@ Would you like me to provide some general career guidance instead?`,
       {
         id: Date.now(),
         type: 'ai',
-        content: `Chat cleared! Hi ${userProfile?.name}, I'm ready to help with your career questions powered by Gemini AI. What would you like to discuss?`,
+        content: `Chat cleared! Hi ${userProfile?.name}, I'm ready to help with your career questions powered by advanced AI technology. What would you like to discuss?`,
         timestamp: new Date(),
         quickReplies: [
           "Explore career paths",
