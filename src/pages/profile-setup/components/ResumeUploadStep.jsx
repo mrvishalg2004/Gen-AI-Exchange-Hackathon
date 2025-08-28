@@ -1,24 +1,27 @@
 import React, { useState, useRef } from 'react';
 import Button from '../../../components/ui/Button';
 import Icon from '../../../components/AppIcon';
+import resumeParsingService from '../../../services/resumeParsingService';
 
-const ResumeUploadStep = ({ formData, updateFormData, errors }) => {
+const ResumeUploadStep = ({ formData, updateFormData, errors, onDataExtracted }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [extractionStatus, setExtractionStatus] = useState('');
+  const [parsedData, setParsedData] = useState(null);
   const fileInputRef = useRef(null);
 
-  const acceptedFileTypes = ['.pdf', '.doc', '.docx'];
+  const acceptedFileTypes = ['.pdf', '.doc', '.docx', '.txt'];
   const maxFileSize = 5 * 1024 * 1024; // 5MB
 
-  const handleFileSelect = (files) => {
+  const handleFileSelect = async (files) => {
     const file = files?.[0];
     if (!file) return;
 
     // Validate file type
     const fileExtension = '.' + file?.name?.split('.')?.pop()?.toLowerCase();
     if (!acceptedFileTypes?.includes(fileExtension)) {
-      updateFormData('resumeError', 'Please upload a PDF, DOC, or DOCX file');
+      updateFormData('resumeError', 'Please upload a PDF, DOC, DOCX, or TXT file');
       return;
     }
 
@@ -32,84 +35,73 @@ const ResumeUploadStep = ({ formData, updateFormData, errors }) => {
     updateFormData('resumeError', '');
     setIsProcessing(true);
     setUploadProgress(0);
+    setExtractionStatus('Uploading file...');
 
-    // Simulate file upload and processing
+    // Simulate upload progress
     const uploadInterval = setInterval(() => {
       setUploadProgress(prev => {
-        if (prev >= 100) {
+        if (prev >= 50) {
           clearInterval(uploadInterval);
-          processResumeData(file);
-          return 100;
+          return 50;
         }
         return prev + 10;
       });
     }, 200);
 
-    updateFormData('resumeFile', file);
+    try {
+      updateFormData('resumeFile', file);
+      
+      // Start parsing process with file-type specific messaging
+      const fileExtension = '.' + file?.name?.split('.')?.pop()?.toLowerCase();
+      if (fileExtension === '.pdf') {
+        setExtractionStatus('Processing PDF file - extracting text from pages...');
+      } else {
+        setExtractionStatus('Analyzing resume content...');
+      }
+      setUploadProgress(60);
+      
+      const parseResult = await resumeParsingService.parseResume(file);
+      
+      setUploadProgress(90);
+      
+      if (parseResult.success) {
+        setExtractionStatus('Extracting information with AI...');
+        const profileData = resumeParsingService.convertToProfileFormat(parseResult.data);
+        
+        setParsedData(parseResult.data);
+        setUploadProgress(100);
+        setExtractionStatus('Resume parsed successfully!');
+        
+        // Show success and extracted data
+        setTimeout(() => {
+          setIsProcessing(false);
+          
+          // Callback to parent component to fill form data
+          if (onDataExtracted) {
+            onDataExtracted(profileData, parseResult.data);
+          }
+        }, 1000);
+        
+      } else {
+        throw new Error(parseResult.error || 'Failed to parse resume');
+      }
+      
+    } catch (error) {
+      console.error('Resume processing error:', error);
+      setUploadProgress(0);
+      setIsProcessing(false);
+      setExtractionStatus('');
+      updateFormData('resumeError', error.message || 'Failed to process resume. Please try again.');
+    }
   };
 
-  const processResumeData = (file) => {
-    // Simulate AI parsing of resume data
-    setTimeout(() => {
-      const mockParsedData = {
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john.doe@email.com',
-        phone: '+1 (555) 123-4567',
-        city: 'San Francisco',
-        skills: {
-          technical: [
-            { id: 1, name: 'JavaScript', level: 'advanced' },
-            { id: 2, name: 'React', level: 'advanced' },
-            { id: 3, name: 'Node.js', level: 'intermediate' },
-            { id: 4, name: 'Python', level: 'intermediate' }
-          ],
-          soft: [
-            { id: 5, name: 'Leadership', level: 'advanced' },
-            { id: 6, name: 'Project Management', level: 'intermediate' }
-          ]
-        },
-        experience: [
-          {
-            id: 1,
-            jobTitle: 'Senior Software Developer',
-            company: 'Tech Solutions Inc.',
-            industry: 'technology',
-            employmentType: 'full-time',
-            startDate: '2021-03-01',
-            endDate: '2024-08-01',
-            isCurrentJob: false,
-            description: `Led development of web applications using React and Node.js. Managed a team of 4 developers and collaborated with cross-functional teams to deliver high-quality software solutions.`
-          }
-        ],
-        education: [
-          {
-            id: 1,
-            level: 'bachelor',
-            fieldOfStudy: 'computer-science',
-            institution: 'University of California, Berkeley',
-            graduationYear: '2020',
-            gpa: '3.8/4.0'
-          }
-        ]
-      };
-
-      // Update form data with parsed information
-      Object.entries(mockParsedData)?.forEach(([key, value]) => {
-        if (key !== 'skills' && key !== 'experience' && key !== 'education') {
-          updateFormData(key, value);
-        }
-      });
-
-      // Update complex fields
-      updateFormData('skills', mockParsedData?.skills);
-      updateFormData('experience', mockParsedData?.experience);
-      updateFormData('education', mockParsedData?.education);
-      updateFormData('overallExperience', 'senior');
-
-      setIsProcessing(false);
-      updateFormData('resumeParsed', true);
-    }, 1000);
+  const handleApplyExtractedData = () => {
+    if (parsedData && onDataExtracted) {
+      const profileData = resumeParsingService.convertToProfileFormat(parsedData);
+      onDataExtracted(profileData, parsedData);
+    }
+    setParsedData(null);
+    setExtractionStatus('');
   };
 
   const handleDragOver = (e) => {
@@ -194,8 +186,9 @@ const ResumeUploadStep = ({ formData, updateFormData, errors }) => {
           />
           
           <div className="mt-4 text-sm text-muted-foreground">
-            <p>Supported formats: PDF, DOC, DOCX</p>
+            <p>Supported formats: PDF, DOC, DOCX, TXT</p>
             <p>Maximum file size: 5MB</p>
+            <p className="text-xs mt-1">📄 PDF files are fully supported with AI-powered text extraction</p>
           </div>
         </div>
       ) : (
@@ -260,18 +253,110 @@ const ResumeUploadStep = ({ formData, updateFormData, errors }) => {
           </div>
         </div>
       )}
-      <div className="bg-muted/50 border border-border rounded-lg p-4">
-        <h3 className="font-medium text-foreground mb-2">Benefits of Resume Upload</h3>
-        <ul className="text-sm text-muted-foreground space-y-1">
-          <li>• Automatically populate your profile information</li>
-          <li>• Extract skills and experience details</li>
-          <li>• Save time in the profile setup process</li>
-          <li>• Get more accurate career recommendations</li>
-        </ul>
-        <p className="text-xs text-muted-foreground mt-3">
-          Your resume is processed securely and is not stored permanently on our servers.
-        </p>
-      </div>
+          {/* Upload Progress */}
+          {isProcessing && (
+            <div className="bg-background border border-border rounded-lg p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                  <Icon name="FileText" size={16} color="white" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Processing Resume</p>
+                  <p className="text-sm text-muted-foreground">{extractionStatus}</p>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  {uploadProgress}% Complete
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Extraction Results */}
+          {parsedData && !isProcessing && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                  <Icon name="CheckCircle" size={16} color="white" />
+                </div>
+                <div>
+                  <p className="font-medium text-green-800">Resume Parsed Successfully!</p>
+                  <p className="text-sm text-green-600">Information extracted and ready to use</p>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {parsedData.personalInfo?.firstName && (
+                    <div>
+                      <span className="font-medium text-green-800">Name: </span>
+                      <span className="text-green-700">
+                        {parsedData.personalInfo.firstName} {parsedData.personalInfo.lastName}
+                      </span>
+                    </div>
+                  )}
+                  {parsedData.personalInfo?.email && (
+                    <div>
+                      <span className="font-medium text-green-800">Email: </span>
+                      <span className="text-green-700">{parsedData.personalInfo.email}</span>
+                    </div>
+                  )}
+                  {parsedData.experience?.length > 0 && (
+                    <div>
+                      <span className="font-medium text-green-800">Experience: </span>
+                      <span className="text-green-700">{parsedData.experience.length} positions</span>
+                    </div>
+                  )}
+                  {parsedData.skills?.technical?.length > 0 && (
+                    <div>
+                      <span className="font-medium text-green-800">Skills: </span>
+                      <span className="text-green-700">{parsedData.skills.technical.length} technical skills</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex space-x-2 pt-2">
+                  <Button 
+                    size="sm" 
+                    onClick={handleApplyExtractedData}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    Apply to Profile
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => setParsedData(null)}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Benefits Info */}
+          <div className="bg-muted/50 border border-border rounded-lg p-4">
+            <h3 className="font-medium text-foreground mb-2">Benefits of Resume Upload</h3>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>• Automatically populate your profile information</li>
+              <li>• Extract skills and experience details</li>
+              <li>• Save time in the profile setup process</li>
+              <li>• Get more accurate career recommendations</li>
+              <li>• Enhanced AI chat responses based on your background</li>
+            </ul>
+            <p className="text-xs text-muted-foreground mt-3">
+              Your resume is processed securely using AI. Data is only used to improve your experience.
+            </p>
+          </div>
       <div className="text-center">
         <Button variant="ghost" size="sm">
           Skip Resume Upload

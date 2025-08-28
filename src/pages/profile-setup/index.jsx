@@ -90,6 +90,26 @@ const ProfileSetup = () => {
     }
   };
 
+  const handleResumeDataExtracted = (profileData, rawData) => {
+    console.log('📋 Resume data extracted:', profileData);
+    
+    // Update form data with extracted information
+    setFormData(prev => ({
+      ...prev,
+      ...profileData,
+      resumeParsed: true,
+      resumeRawData: rawData // Store raw parsed data for chat context
+    }));
+    
+    // Show success message
+    alert('Resume parsed successfully! Your profile has been auto-filled with extracted information. Please review and update as needed.');
+    
+    // Auto-advance to next step after successful parsing
+    setTimeout(() => {
+      handleNext();
+    }, 2000);
+  };
+
   const validateStep = (step) => {
     const newErrors = {};
 
@@ -170,8 +190,28 @@ const ProfileSetup = () => {
       // Simulate API call to save profile data
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Save completion status
+      // Save completion status and profile data
       localStorage.setItem('profileCompleted', 'true');
+      localStorage.setItem('userProfile', JSON.stringify({
+        name: `${formData.firstName} ${formData.lastName}`,
+        email: formData.email,
+        currentRole: formData.experience?.[0]?.title || 'Professional',
+        experience: formData.overallExperience,
+        skills: [
+          ...(formData.skills?.technical || []),
+          ...(formData.skills?.soft || []),
+          ...(formData.skills?.tools || [])
+        ],
+        interests: formData.interests || [],
+        hasResume: !!formData.resumeParsed
+      }));
+      
+      // Save raw resume data separately for AI context
+      if (formData.resumeRawData) {
+        localStorage.setItem('resumeData', JSON.stringify(formData.resumeRawData));
+      }
+      
+      // Save full profile data for form state
       localStorage.setItem('profileData', JSON.stringify(formData));
 
       // Navigate to dashboard
@@ -192,6 +232,7 @@ const ProfileSetup = () => {
             formData={formData}
             updateFormData={updateFormData}
             errors={errors}
+            onDataExtracted={handleResumeDataExtracted}
           />
         );
       case 2:

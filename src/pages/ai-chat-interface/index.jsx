@@ -73,15 +73,41 @@ const AIChatInterface = () => {
     checkApiStatus();
   }, []);
 
-  // Mock user profile data
-  const userProfile = {
-    name: "Sarah Johnson",
-    email: "sarah.johnson@email.com",
-    currentRole: "Marketing Coordinator",
-    experience: "3 years",
-    skills: ["Digital Marketing", "Content Creation", "Analytics", "Social Media"],
-    interests: ["Data Science", "Product Management", "UX Design"]
+  // Enhanced user profile with resume data support
+  const getUserProfile = () => {
+    // Try to get profile data from localStorage first
+    const savedProfile = localStorage.getItem('userProfile');
+    const resumeData = localStorage.getItem('resumeData');
+    
+    if (savedProfile) {
+      const profile = JSON.parse(savedProfile);
+      
+      // Enhance with resume data if available
+      if (resumeData) {
+        const resume = JSON.parse(resumeData);
+        return {
+          ...profile,
+          resumeData: resume,
+          hasResume: true
+        };
+      }
+      
+      return profile;
+    }
+    
+    // Fallback to mock data
+    return {
+      name: "Sarah Johnson",
+      email: "sarah.johnson@email.com",
+      currentRole: "Marketing Coordinator",
+      experience: "3 years",
+      skills: ["Digital Marketing", "Content Creation", "Analytics", "Social Media"],
+      interests: ["Data Science", "Product Management", "UX Design"],
+      hasResume: false
+    };
   };
+
+  const userProfile = getUserProfile();
 
   // Mock conversations data
   const [conversations, setConversations] = useState([

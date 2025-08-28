@@ -17,5 +17,9 @@ export default defineConfig({
     host: "0.0.0.0",
     strictPort: false,
     allowedHosts: ['.amazonaws.com', '.builtwithrocket.new']
-  }
+  },
+  optimizeDeps: {
+    include: ['pdfjs-dist']
+  },
+  assetsInclude: ['**/*.worker.js']
 });
