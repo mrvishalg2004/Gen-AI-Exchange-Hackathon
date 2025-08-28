@@ -164,7 +164,4 @@ For support, feature requests, or feedback:
 - Join our community discussions
 
 ---
-<<<<<<< HEAD
-=======
 
->>>>>>> 8158175266bb1a1a75cd47a60727940d1fe90c4a
