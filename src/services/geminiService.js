@@ -29,8 +29,9 @@ class GeminiService {
         this.genAI = new GoogleGenerativeAI(apiKey);
       }
       
+      // Initialize with the model we know works for this key
       this.model = this.genAI.getGenerativeModel({ 
-        model: 'gemini-pro',
+        model: 'gemini-1.5-flash',  // Using the model that passed our tests
         generationConfig: {
           temperature: 0.9,
           topK: 1,
@@ -71,10 +72,36 @@ class GeminiService {
           suggestion: 'Please replace with your actual Gemini API key from https://ai.google.dev/'
         };
       }
-      
-      // Simple test to verify the API key works
-      const result = await this.model.generateContent('Test message');
-      await result.response;
+
+      // Try with the model we know works
+      try {
+        console.log('Trying model: gemini-1.5-flash');
+        
+        // We know this model works with the API key
+        this.model = this.genAI.getGenerativeModel({ 
+          model: 'gemini-1.5-flash',
+          generationConfig: {
+            temperature: 0.9,
+            topK: 1,
+            topP: 1,
+            maxOutputTokens: 2048,
+          },
+        });
+        
+        // Test the model
+        const result = await this.model.generateContent('Test message');
+        await result.response;
+        
+        // If we reach here, the test was successful
+        console.log('Successfully connected using gemini-1.5-flash');
+        return {
+          valid: true,
+          model: 'gemini-1.5-flash'
+        };
+      } catch (error) {
+        console.warn('Error with gemini-1.5-flash:', error.message);
+        throw error; // Throw the error to be caught below
+      }
       
       return {
         valid: true,
@@ -87,10 +114,10 @@ class GeminiService {
       let reason = 'API key validation failed';
       let suggestion = 'Please check if the API key is valid and has sufficient quota';
       
-      if (error.message?.includes('API_KEY_INVALID') || error.message?.includes('invalid API key')) {
-        reason = 'Invalid API key';
-        suggestion = 'Your API key is invalid. Please generate a new one from Google AI Studio (https://ai.google.dev/)';
-      } else if (error.message?.includes('quota') || error.message?.includes('limit')) {
+      if (error.message?.includes('API_KEY_INVALID') || error.message?.includes('invalid API key') || error.message?.includes('expired')) {
+        reason = 'Invalid or expired API key';
+        suggestion = 'Your API key is invalid or has expired. Please generate a new one from Google AI Studio (https://ai.google.dev/)';
+      } else if (error.message?.includes('quota') || error.message?.includes('limit') || error.message?.includes('Too Many Requests')) {
         reason = 'API quota exceeded';
         suggestion = 'Your API key has reached its quota limit. Wait or request a new key.';
       } else if (error.message?.includes('network') || error.message?.includes('connect')) {
@@ -99,6 +126,9 @@ class GeminiService {
       } else if (error.message?.includes('PERMISSION_DENIED')) {
         reason = 'API key lacks permissions';
         suggestion = 'Ensure your API key has Gemini API permissions enabled';
+      } else if (error.message?.includes('not found') || error.status === 404) {
+        reason = 'Model not available';
+        suggestion = 'The model is not available for your API key. Try generating a new API key.';
       }
       
       return {
