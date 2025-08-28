@@ -19,6 +19,13 @@ vite.config.*s.*
 .env.development
 .env.test
 .env.production
+.env.new
+
+# API Keys and Secrets (extra protection)
+**/apikey*
+**/api-key*
+**/*secret*
+**/*token*
 
 # System files
 .DS_Store

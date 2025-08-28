@@ -1,6 +1,6 @@
 // Direct API key test
 const testApiKey = async () => {
-  const apiKey = 'AIzaSyBUjB6HlTj4y1f1mXcikdbies8dDULgSNE';
+  const apiKey = 'your_api_key_here'; // Replace with your actual API key
   
   try {
     console.log('Testing Gemini API key directly...');
